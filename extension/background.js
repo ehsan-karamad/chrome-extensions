@@ -2,18 +2,31 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Background page -- background.js
-chrome.runtime.onConnect.addListener(function(devToolsConnection) {
-    // assign the listener function to a variable so we can remove it later
-    var devToolsListener = function(message, sender, sendResponse) {
-        // Inject a content script into the identified tab
-        chrome.tabs.executeScript(message.tabId,
-            { file: message.scriptToInject });
-    }
-    // add the listener
-    devToolsConnection.onMessage.addListener(devToolsListener);
+let devtools_port = null;
+let contents_port = null;
 
-    devToolsConnection.onDisconnect.addListener(function() {
-         devToolsConnection.onMessage.removeListener(devToolsListener);
-    });
-});
+chrome.runtime.onConnect.addListener(on_connect);
+
+function on_connect(incomming_port) {
+    if (incomming_port.name === "devtools") {
+        devtools_port = incomming_port;
+        devtools_port.onMessage = on_devtools_message;
+    }
+    if (incomming_port.name === "contents") {
+        contents_port = incomming_port;
+        contents_port.onMessage = on_contents_message;
+    }
+};
+
+
+function on_devtools_message(message) {
+
+}
+
+function on_contents_message(message) {
+    if (message.type === "test-done") {
+        devtools_port.postMessage({type: "test-done"}, "*");
+    }
+}
+
+
