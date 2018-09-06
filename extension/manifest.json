@@ -2,9 +2,9 @@
   "name": "LayoutAnimationDetect",
   "version": "1.0",
   "description": "Simple toolset to detect layout changes and animation layout changes.",
-  "minimum_chrome_version": "50.0",
+  "minimum_chrome_version": "10.0",
   "devtools_page": "devtools.html",
-  "background": { "scripts": ["background.js"] },
+  "background": { "persistent": true, "scripts": ["background.js"] },
   "manifest_version": 2,
   "permissions": ["tabs", "activeTab", "<all_urls>"],
   "content_scripts": [

@@ -107,7 +107,7 @@ function global_id(len) {
 
   g_css_properties_map = {};
 
-  function ReinitCSSPropertyGenerators() {
+  function ReinitCSSPropertyGenerators(default_list) {
     let rng = g_default_prng;
 
    // Holds all the required information about a certain CSS property.
@@ -177,8 +177,8 @@ CSSProperty.prototype.init = function() {
    if ((new_value === value) ||
     !!(new RegExp(`[,; ]+${value}[,; ]+`)).exec(new_value)) {
     keyword_values.push(value);
-}
-}
+   }
+  }
 
    // Does it accept color?
    div.style[this.name()] = "rgba(0, 1, 2)";
@@ -209,9 +209,16 @@ CSSProperty.prototype.init = function() {
  };
 
  g_css_properties_map = {};
- for (var index = 0; index < cs.length; ++index) {
-   g_css_properties_map[cs[index]] = new CSSProperty(cs[index]);
+ let keys = default_list;
+ if (!keys || !keys.length) {
+  keys = [];
+  for (var index = 0; index < cs.length; ++index)
+    keys.push(cs[index]);
  }
+
+ keys.forEach( (key) => {
+  g_css_properties_map[key] = new CSSProperty(key);
+ });
 
  document.body.removeChild(div);
 }
@@ -353,10 +360,15 @@ ReinitCSSPropertyGenerators();
     window.requestAnimationFrame(on_raf);
   };
   self.stop_monitoring = () => { is_running = false; };
-  console.log(`Created animation for id: ${self.element().element().getAttribute("global-unique-id")} and property: ${self.property().name()}`);
 }
 
 AnimationMonitor.prototype.run = function(callback) {
+  let new_progess = Math.floor(100 * window.current_animation_run_count / window.total_count_of_animations);
+  if (new_progess !== progress) {
+    progress = new_progess;
+    console.log(`Progress ${progress}%`);
+  }
+
   let self = this;
   self.all_elements().forEach( (e) => { e.sample(true); });
   let dom_element = self.element().element();
@@ -369,7 +381,6 @@ AnimationMonitor.prototype.run = function(callback) {
     dom_element.removeEventListener("animationend", on_animationend);
   }
   if (self.property().name() in layout_animation_properties) {
-    console.log(`Ignored running animation for property ${self.property().name()} since we already know it causes layout.`);
     if (self.next_animation)
       self.next_animation.run(callback);
     return;
@@ -381,7 +392,6 @@ AnimationMonitor.prototype.run = function(callback) {
   self.frame_to = {};
   self.property().randomize();
   self.frame_to[self.property().name()] = self.property().value();
-  console.log(`Running animation for property ${self.property().name()}.`);
   dom_element.animate(
     [self.frame_from, self.frame_to],
     {duration: self.duration()});
@@ -410,11 +420,16 @@ AnimationMonitor.prototype.summary = function() {
 var violating_animations = [];
 
 async function startTest(root, params) {
+  console.log("Creating test animations...");
   var animations = create_animations(root, params);
+  window.total_count_of_animations = animations.length;
+  window.current_animation_run_count = 0;
+  window.progress = 0;
+  console.log(`A total of ${total_count_of_animations} animations to run.`);
   animations[0].run(() => {
     console.log(layout_animation_properties);
     downloadData(layout_animation_properties);
-    notify_background(
+    sendMessage(
       JSON.stringify({type: "test-done", result: layout_animation_properties}));
   });
 }
@@ -430,6 +445,10 @@ function create_animations(root_element, params) {
   });
   var animated_elements = random_subarray(all_elements, params.animated_elements_percentage / 100);
   var css_properties = Object.keys(g_css_properties_map);
+  if (params.css_properties !== "null") {
+    css_properties = JSON.parse(params.css_properties);
+    ReinitCSSPropertyGenerators(css_properties);
+  }
   var all_animations =[];
 
   for (var index = 0; index < css_properties.length; ++index) {
@@ -459,7 +478,7 @@ function create_animations(root_element, params) {
   return all_animations;
 }
 
-function notify_background(msg) {
+function sendMessage(msg) {
   if (!background_port) {
     background_port = chrome.runtime.connect({name: "contents"});
   }
@@ -478,10 +497,8 @@ function downloadData(d) {
   link.click();
 }
 
-function test_all() {
-  startTest(document.body, { seed: 100,
-    animated_elements_percentage: 5,
-    sample_period: 1,
-    animation_duration: 50,
-    n_runs: 1});
+function reportElementCound(e) {
+  let t = new ElementTree(e);
+  let c = t.all_elements().length;
+  sendMessage({type: "count", count: c});
 }

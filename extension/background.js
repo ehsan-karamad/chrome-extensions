@@ -8,14 +8,14 @@ let contents_port = null;
 chrome.runtime.onConnect.addListener(on_connect);
 
 function on_connect(incomming_port) {
-    if (incomming_port.name === "devtools") {
-        devtools_port = incomming_port;
-        devtools_port.onMessage = on_devtools_message;
-    }
-    if (incomming_port.name === "contents") {
-        contents_port = incomming_port;
-        contents_port.onMessage = on_contents_message;
-    }
+  if (incomming_port.name === "devtools") {
+    devtools_port = incomming_port;
+    devtools_port.onMessage.addListener(on_devtools_message);
+  }
+  if (incomming_port.name === "contents") {
+    contents_port = incomming_port;
+    contents_port.onMessage.addListener(on_contents_message);
+  }
 };
 
 
@@ -24,9 +24,11 @@ function on_devtools_message(message) {
 }
 
 function on_contents_message(message) {
-    if (message.type === "test-done") {
-        devtools_port.postMessage({type: "test-done"}, "*");
-    }
+  if (message.type === "test-done") {
+    devtools_port.postMessage({type: "test-done"}, "*");
+  } else if (message.type === "count") {
+    devtools_port.postMessage({type: "count", count: message.count}, "*");
+  }
 }
 
 
