@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<style>
+table, tr, td {
+  border: solid 1px;
+}
+</style>
+<body>
+    <p style="color: blue; width: 100%; height: auto; white-space: pre-wrap; border: solid black 1px;">
+This module runs an extensive test on the current page where all possible CSS properties are animated randomly and for each animation the code in the test tries to detect layout changes by comparing getBoundingClientRects() from all elements.
+    </p>
+<table>
+    <tr>
+        <td><b>Parameter</b></td>
+        <td><b>Value</b></td>
+    </tr>
+    <tr>
+        <td><span>PRNG Seed</span></td>
+        <td><input type="number" value="123" id="seed"/></td>
+    </tr>
+    <tr>
+        <td><span>Share of Elements to Animate (%)</span></td>
+        <td><input type="number" value="5" id="animate-share" min="0" max="100"/></td>
+    </tr>
+    <tr>
+        <td><span>Measurement Period (raf)</span></td>
+        <td><input type="number" value="2" id="sample-period" min="1"/></td>
+    </tr>
+    <tr>
+        <td><span>Test Animation Duration (ms)</span></td>
+        <td><input type="number" value="100" id="animate-time" min="50" max="5000"/></td>
+    </tr>
+    <tr>
+        <td><span>Number of Runs Per (Animation, Element) </span></td>
+        <td><input type="number" value="1" id="n-runs" min="1" max="100"/></td>
+    </tr>
+</table>
+<button id="start"> Start </button>
+<script src="sidebar.js"></script>
+</body>
