@@ -19,8 +19,12 @@ under the tree of the selected element ($0).
         <td><input type="number" value="7" id="seed"/></td>
     </tr>
     <tr>
-        <td><span>Share of Elements to Animate (%) (roughly <button id="element-count">Count</button> <span id="element-count-value"></span>on page)</span></td>
-        <td><input type="number" value="10" id="animate-share" min="0" max="100"/></td>
+        <td><span>Element Area Min (width x height)</span></td>
+        <td><input type="number" value="10" id="area-min" min="1"/></td>
+    </tr>
+    <tr>
+        <td><span>Element Area Max (width x height)</span></td>
+        <td><input type="number" value="1000" id="area-max" min="1"/></td>
     </tr>
     <tr>
         <td><span>Measurement Period (raf)</span></td>
@@ -39,6 +43,7 @@ under the tree of the selected element ($0).
       <td><input id="input-json" type="file" value="import..."></td>
     </tr>
 </table>
+<p id="element-count-update" style="font-style: italic"></p>
 <button id="start"> Start </button>
 <script src="sidebar.js"></script>
 </body>

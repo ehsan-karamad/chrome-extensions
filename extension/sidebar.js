@@ -15,7 +15,6 @@ function find_state(callback) {
   };
 }
 
-
 function disable_button() {
   let b = document.getElementById("start");
   b.disabled = true;
@@ -46,18 +45,35 @@ function start() {
   chrome.devtools.inspectedWindow.eval(
     `startTest($0, ${state});`,
     {useContentScriptContext: true});
+  disable_button();
 }
-
-document.getElementById("element-count").addEventListener("click", () => {
-    chrome.devtools.inspectedWindow.eval(
-      "reportElementCound($0);",
-      {useContentScriptContext: true});
-});
 
 let background_port = chrome.runtime.connect({name: "devtools"});
 
 background_port.onMessage.addListener(function(message) {
   if (message.type === "count") {
-    document.getElementById("element-count-value").innerHTML = `<<${message.count}>>`;
+    on_element_count_received(message.data);
+  } else if (message.type === "test-done") {
+    enable_button();
   }
 });
+
+
+var area_min_input = document.getElementById("area-min");
+var area_max_input = document.getElementById("area-max");
+
+area_min_input.addEventListener("change", on_area_changed);
+area_max_input.addEventListener("change", on_area_changed);
+
+function on_area_changed() {
+  let min = area_min_input.value;
+  let max = area_max_input.value;
+  if (max <= min) {
+    max = min + 1;
+    area_max_input.value = max;
+  }
+
+  chrome.devtools.inspectedWindow.eval(
+      `reportElementCountWithinAreaRange($0, ${min}, ${max});`,
+      {useContentScriptContext: true});
+}

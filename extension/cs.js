@@ -257,10 +257,12 @@ ReinitCSSPropertyGenerators();
     this.sampled_bounds = () => { return bounds; }
   }
 
-  ElementTree.prototype.all_elements = function() {
+  ElementTree.prototype.all_elements = function(sel) {
     let elements = [];
     function addElement(e) {
       if (!(e instanceof HTMLElement))
+        return;
+      if (sel && !sel(e))
         return;
       elements.push(new Element(e));
       let child = e.firstChild;
@@ -385,12 +387,7 @@ AnimationMonitor.prototype.run = function(callback) {
   let dom_element = self.element().element();
   function on_animationend() {
     self.stop_monitoring();
-    if (!self.next_animation) {
-      callback();
-    }
-    else {
-      self.next_animation.run(callback);
-    }
+    callback(self.next_animation);
   }
 
   if (self.property().name() in layout_animation_properties) {
@@ -436,12 +433,25 @@ async function startTest(root, params) {
   window.current_animation_run_count = 0;
   window.progress = 0;
   console.log(`A total of ${total_count_of_animations} animations to run.`);
-  animations[0].run(() => {
-    console.log(layout_animation_properties);
-    downloadData(layout_animation_properties);
-    sendMessage(
-      JSON.stringify({type: "test-done", result: layout_animation_properties}));
-  });
+  function on_finished_running_animation(next) {
+    if (next) {
+      console.log(next.property().name());
+      window.setTimeout(() => {
+        next.run(on_finished_running_animation);
+      });
+    } else {
+      console.log(layout_animation_properties);
+      downloadData(layout_animation_properties);
+      sendMessage(
+        JSON.stringify({type: "test-done", result: layout_animation_properties}));
+    }
+  }
+  animations[0].run(on_finished_running_animation);
+}
+
+function element_bounds_size_limit(e) {
+  let b = e.getBoundingClientRect();
+  return b.width > 0 && b.height > 0;
 }
 
 function create_animations(root_element, params) {
@@ -449,7 +459,7 @@ function create_animations(root_element, params) {
   set_global_prng_seed(params.seed);
 
   var tree = new ElementTree(root_element);
-  var all_elements = tree.all_elements();
+  var all_elements = tree.all_elements(element_bounds_size_limit);
   all_elements.forEach( (e) => {
     e.element().setAttribute("global-unique-id", global_id(16));
   });
@@ -461,6 +471,8 @@ function create_animations(root_element, params) {
   }
   var all_animations =[];
 
+  let animated_elements_count = animated_elements.length;
+
   for (var index = 0; index < css_properties.length; ++index) {
     let property = g_css_properties_map[css_properties[index]];
     if (property.generators().length === 0) {
@@ -468,9 +480,11 @@ function create_animations(root_element, params) {
       // it is not an element style to begin with (e.g., 'animation-delay').
       continue;
     }
-    for (var jndex = 0; jndex < animated_elements.length; jndex++) {
-      let element = animated_elements[jndex];
-      for (var kndex = 0; kndex < params.n_runs; ++kndex) {
+    for (var n_run = 0; n_run < params.n_runs; ++n_run) {
+      // pick a random element.
+      let element = animated_elements[g_default_prng.randInt(
+        0,
+        animated_elements_count)];
         let animation = new AnimationMonitor(
           element,
           all_elements,
@@ -478,7 +492,6 @@ function create_animations(root_element, params) {
           params.sample_period,
           params.animation_duration * 1);
         all_animations.push(animation);
-      }
     }
   }
 
@@ -509,6 +522,6 @@ function downloadData(d) {
 
 function reportElementCound(e) {
   let t = new ElementTree(e);
-  let c = t.all_elements().length;
+  let c = t.all_elements(element_bounds_size_limit).length;
   sendMessage({type: "count", count: c});
 }
