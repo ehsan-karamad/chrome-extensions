@@ -190,20 +190,26 @@ CSSProperty.prototype.init = function() {
    div.style[this.name()] = "37px";
    let accepts_numeric_pixels = !!patterns["numeric_pixel"].exec(cs.getPropertyValue(this.name()));
 
-   if (keyword_values.length > 0)
-     generators.push(new RandomKeywordGenerator(keyword_values));
    if (accepts_color)
      generators.push(global_random_color_gen);
-   if (accepts_numeric_percent)
-     generators.push(global_random_percent_gen);
    if (accepts_numeric_pixels)
      generators.push(global_random_pixel_gen);
+   if (accepts_numeric_percent)
+     generators.push(global_random_percent_gen);
+   if (keyword_values.length > 0)
+     generators.push(new RandomKeywordGenerator(keyword_values));
  };
 
  CSSProperty.prototype.randomize = function() {
    if (!this.generators().length)
      return;
-   let g = this.generators()[rng.randInt(0, this.generators().length)];
+   // Pixel and Color generators are implicitly prioritized over the rest. They
+   // are better things for animations.
+   let g = this.generators()[0];
+   if (this.generators().length > 1 &&
+       (g_default_prng.rand() > 0.5)) {
+    g = this.generators()[1];
+   }
    s = g.next();
    this.value = () => { return s; };
  };
@@ -362,8 +368,13 @@ ReinitCSSPropertyGenerators();
   self.stop_monitoring = () => { is_running = false; };
 }
 
+let animation_errors = [];
+function record_animation_error(animation, error) {
+  animation_errors.push({animation: animation, error: error});
+}
+
 AnimationMonitor.prototype.run = function(callback) {
-  let new_progess = Math.floor(100 * window.current_animation_run_count / window.total_count_of_animations);
+  let new_progess = Math.floor(100 * window.current_animation_run_count++ / window.total_count_of_animations);
   if (new_progess !== progress) {
     progress = new_progess;
     console.log(`Progress ${progress}%`);
@@ -372,14 +383,16 @@ AnimationMonitor.prototype.run = function(callback) {
   let self = this;
   self.all_elements().forEach( (e) => { e.sample(true); });
   let dom_element = self.element().element();
-  let did_stop = false;
   function on_animationend() {
-    if (did_stop)
-      return;
-    did_stop = true;
     self.stop_monitoring();
-    dom_element.removeEventListener("animationend", on_animationend);
+    if (!self.next_animation) {
+      callback();
+    }
+    else {
+      self.next_animation.run(callback);
+    }
   }
+
   if (self.property().name() in layout_animation_properties) {
     if (self.next_animation)
       self.next_animation.run(callback);
@@ -392,19 +405,16 @@ AnimationMonitor.prototype.run = function(callback) {
   self.frame_to = {};
   self.property().randomize();
   self.frame_to[self.property().name()] = self.property().value();
-  dom_element.animate(
-    [self.frame_from, self.frame_to],
-    {duration: self.duration()});
+  try {
+    dom_element.animate(
+      [self.frame_from, self.frame_to],
+      {duration: self.duration()});
+  } catch(e) {
+    record_animation_error(this, e);
+    on_animationend();
+  }
   self.start_monitoring();
-  window.setTimeout(() => {
-    self.stop_monitoring();
-    if (!self.next_animation) {
-      callback();
-    }
-    else {
-      self.next_animation.run(callback);
-    }
-  }, self.duration() + 10);
+  window.setTimeout(on_animationend, self.duration() + 10);
 };
 
 AnimationMonitor.prototype.summary = function() {
