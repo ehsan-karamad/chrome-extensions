@@ -232,88 +232,107 @@ CSSProperty.prototype.init = function() {
 ReinitCSSPropertyGenerators();
 
 /*
-  DOM Helpers.
+  Node Tree.
 
-  Tools used to traverse trees and get all elements.
+  Helpers for DOM tree traversal to get all nodes and elements as well as a
+  wrapper around node used further below in the tests.
 
   */
 
-  function ElementTree(root_el) {
-    this.root = () => { return !!root_el ? root_el : document.body; }
-  }
+var NodeTree = {};
 
-  function Element(e) {
-    this.element = () => { return e; };
+// Constants.
+NodeTree.kSelectNodeSelectSubtree = 0;
+NodeTree.kIgnoreNodeSelectSubtree = 1;
+NodeTree.kIgnoreNodeIgnoreSubtree = 2;
+
+NodeTree.Tree = function(root_el) {
+    this.root = () => { return !!root_el ? root_el : document.body; }
+    this.kSelectNodeSelectSubtree = 0;
+    this.kIgnoreNodeSelectSubtree = 1;
+    this.kIgnoreNodeIgnoreSubtree = 2;
+};
+
+
+NodeTree.Node = function(node /* DOM node*/) {
+    this.node = () => { return node; };
+    this.element = () => {
+      if (!(node instanceof HTMLElement))
+        throw "Cannot cast to Element.";
+      return node;
+    };
     let bounds = [];
     this.sample = (clear) => {
       if (clear)
         bounds = [];
       let last_id = bounds.length;
-      bounds.push(new ElementRect(this.element()));
+      bounds.push(new NodeTree.ElementRect(this.element()));
       let not_changed = last_id < 1 || bounds[last_id].approximately_equals(
         bounds[last_id - 1]);
       return not_changed ? null : bounds[last_id].diff(bounds[last_id - 1]);
     };
     this.sampled_bounds = () => { return bounds; }
-  }
+    this.rect = () => { return new NodeTree.ElementRect(this.element()); };
+};
 
-  ElementTree.prototype.all_elements = function(sel) {
-    let elements = [];
-    function add_element(e) {
-      if (sel && !sel(e))
-        return;
-      if (e instanceof HTMLElement) {
-        // TODO: Should we early return if |e| is not HTMLElement?
-        elements.push(new Element(e));
-      }
-      let child = e.firstChild;
-      while(child) {
-        add_element(child);
-        child = child.nextSibling;
-      }
+NodeTree.Tree.prototype.all_nodes = function(sel) {
+  let nodes = [];
+  function recurse_node(node) {
+    let result = sel(node);
+    if (result === NodeTree.kIgnoreNodeIgnoreSubtree)
+      return;
+
+    if (result === NodeTree.kSelectNodeSelectSubtree)
+      nodes.push(new NodeTree.Node(node));
+
+    let child = node.firstChild;
+    while(child) {
+      recurse_node(child);
+      child = child.nextSibling;
     }
-    add_element(this.root());
-    return elements;
-  };
-
-  function ElementRect(e) {
-    var bounds = e.getBoundingClientRect();
-    var body_bounds = document.body.getBoundingClientRect();
-    let left = bounds.left - body_bounds.left,
-        top = bounds.top - body_bounds.top;
-    this.left = () => { return left; };
-    this.top = () => { return top; };
-    this.width = () => { return bounds.width; };
-    this.height = () => { return bounds.height; };
-    this.area = () => {return bounds.width * bounds.height; };
   }
+  recurse_node(this.root());
+  return nodes;
+};
 
-  Element.prototype.area = function() {
-    return (new ElementRect(this.element())).area();
-  };
 
-  ElementRect.prototype.diff = function(o) {
-    return {
-      left: (this.left() - o.left()),
-      top: (this.top() - o.top()),
-      width: (this.width() - o.width()),
-      height: (this.height() - o.height())
-    };
-  };
+NodeTree.ElementRect = function(e) {
+  if (!(e instanceof HTMLElement))
+    throw "Has to be an HTMLElement.";
 
-  ElementRect.prototype.toString = function() {
-    return `(${this.left()}, ${this.top()}) ${this.width()}x${this.height()}`;
-  };
+  var bounds = e.getBoundingClientRect();
+  var body_bounds = document.body.getBoundingClientRect();
+  let left = bounds.left - body_bounds.left,
+      top = bounds.top - body_bounds.top;
+  this.left = () => { return left; };
+  this.top = () => { return top; };
+  this.width = () => { return bounds.width; };
+  this.height = () => { return bounds.height; };
+  this.area = () => {return bounds.width * bounds.height; };
+};
 
-  ElementRect.prototype.approximately_equals = function(other, err) {
-    let delta = this.diff(other);
-    if (!err) err = 0.1;
-    for (key in delta) {
-      if (Math.abs(delta[key]) > err)
-        return false;
-    }
-    return true;
+NodeTree.ElementRect.prototype.diff = function(o) {
+  return {
+    left: (this.left() - o.left()),
+    top: (this.top() - o.top()),
+    width: (this.width() - o.width()),
+    height: (this.height() - o.height())
   };
+};
+
+NodeTree.ElementRect.prototype.toString = function() {
+  return `(${this.left()}, ${this.top()}) ${this.width()}x${this.height()}`;
+};
+
+NodeTree.ElementRect.prototype.approximately_equals = function(other, err) {
+  let delta = this.diff(other);
+  if (!err) err = 0.1;
+  for (key in delta) {
+    if (Math.abs(delta[key]) > err)
+      return false;
+  }
+  return true;
+};
 
 /*
    Instrumentation Logic.
@@ -339,7 +358,7 @@ ReinitCSSPropertyGenerators();
     let is_running = false, self = this;
     self.next_animation = null;
     self.element = () => { return animated_element; };
-    self.all_elements = () => { return elements_to_monitor; };
+    self.all_nodes = () => { return elements_to_monitor; };
     self.property = () => { return property; };
     self.raf_period = () => { return raf_period; };
     self.duration = () => { return duration; };
@@ -348,8 +367,8 @@ ReinitCSSPropertyGenerators();
 
     let raf_count = 0;
     function test_bounds() {
-      for (var index = 0; index < self.all_elements().length; ++index) {
-        let diff = self.all_elements()[index].sample();
+      for (var index = 0; index < self.all_nodes().length; ++index) {
+        let diff = self.all_nodes()[index].sample();
         if (diff) {
           self.bounds_diff = diff;
           add_violating_animation(self);
@@ -389,7 +408,7 @@ AnimationMonitor.prototype.run = function(callback) {
   }
 
   let self = this;
-  self.all_elements().forEach( (e) => { e.sample(true); });
+  self.all_nodes().forEach( (e) => { e.sample(true); });
   let dom_element = self.element().element();
   function on_animationend() {
     self.stop_monitoring();
@@ -464,19 +483,10 @@ function create_animations(root_element, params) {
   // Initialize RNG.
   set_global_prng_seed(params.seed);
 
-  var tree = new ElementTree(root_element)
-  var all_elements = tree.all_elements();
+  var tree = new NodeTree.Tree(root_element)
   // Filter elements according to their sizes.
-  var elements_used_in_measurements = [];
-  all_elements.forEach( (e) => {
-    let b = e.getBoundingClientRect();
-    let area = b.width * b.height;
-    if ((area > params.element_area_min) &&
-        (area < params.element_area_max)) {
-      elements_used_in_measurements.push(e);
-    }
-  });
-  all_elements = elements_used_in_measurements;
+  var all_elements = tree.all_nodes(bounded_html_element_selector.bind(
+    null, params.element_area_min, params.element_area_max));
   // Assign unique IDs for further tracking.
   all_elements.forEach( (e) => {
     e.element().setAttribute("global-unique-id", global_id(16));
@@ -543,20 +553,25 @@ function download_data(d) {
   link.click();
 }
 
+function bounded_html_element_selector(min, max, e) {
+  if (!(e instanceof HTMLElement))
+    return NodeTree.kIgnoreNodeSelectSubtree;
+  let b = e.getBoundingClientRect();
+  let area = b.width * b.height;
+  if (area < min || area > max)
+    return NodeTree.kIgnoreNodeSelectSubtree;
+  return NodeTree.kSelectNodeSelectSubtree;
+}
+
 function report_elements_count(e, min_area, max_area) {
-  let t = new ElementTree(e);
-  let c = t.all_elements();
-  let m = 0;
-  c.forEach((e) => {
-    let area = e.area();
-    if ((area >= min_area) && (area <= max_area))
-      m++;
-  });
+  let t = new NodeTree.Tree(e);
+  let all_count = t.all_nodes(bounded_html_element_selector.bind(null, 0, 1e12)).length;
+  let bounded_count = t.all_nodes(bounded_html_element_selector.bind(null, min_area, max_area)).length;
   sendMessage({
     type: "count",
     data: {
-      total_elements_count: c,
-      elements_within_bounds_count: m,
+      total_elements_count: all_count,
+      elements_within_bounds_count: bounded_count,
       area_min: min_area,
       area_max: max_area,
   }});
