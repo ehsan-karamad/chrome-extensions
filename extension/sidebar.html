@@ -20,23 +20,26 @@ under the tree of the selected element ($0).
     </tr>
     <tr>
         <td><span>Element Area Min (width x height)</span></td>
-        <td><input type="number" value="10" id="area-min" min="1"/></td>
+        <td><input type="number" value="1" id="area-min" min="1"/></td>
     </tr>
     <tr>
         <td><span>Element Area Max (width x height)</span></td>
-        <td><input type="number" value="1000" id="area-max" min="1"/></td>
+        <td><input type="number" value="10000" id="area-max" min="1"/></td>
     </tr>
     <tr>
+        <td><span>Animated Elements Share (%)</span></td>
+        <td><input type="number" value="5" min="1" max="100" id="elements-share"/></td>
+    <tr>
         <td><span>Measurement Period (raf)</span></td>
-        <td><input type="number" value="2" id="sample-period" min="1"/></td>
+        <td><input type="number" value="1" id="sample-period" min="1"/></td>
     </tr>
     <tr>
         <td><span>Test Animation Duration (ms)</span></td>
-        <td><input type="number" value="200" id="animate-time" min="50" max="5000"/></td>
+        <td><input type="number" value="90" id="animate-time" min="50" max="5000"/></td>
     </tr>
     <tr>
-        <td><span>Number of Runs Per (Animation, Element) </span></td>
-        <td><input type="number" value="10" id="n-runs" min="1" max="100"/></td>
+        <td><span>Number of Runs Per Animation</span></td>
+        <td><input type="number" value="10" id="n-runs" min="1" max="1000"/></td>
     </tr>
     <tr>
       <td><span>Custom CSS Properties to Test (.json list)</span></td>

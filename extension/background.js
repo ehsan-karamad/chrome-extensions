@@ -27,7 +27,7 @@ function on_contents_message(message) {
   if (message.type === "test-done") {
     devtools_port.postMessage({type: "test-done"}, "*");
   } else if (message.type === "count") {
-    devtools_port.postMessage({type: "count", count: message.count}, "*");
+    devtools_port.postMessage({type: "count", data: message.data}, "*");
   }
 }
 

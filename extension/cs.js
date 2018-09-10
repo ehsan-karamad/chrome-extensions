@@ -250,7 +250,7 @@ ReinitCSSPropertyGenerators();
         bounds = [];
       let last_id = bounds.length;
       bounds.push(new ElementRect(this.element()));
-      let not_changed = last_id < 1 || bounds[last_id].approximatelyEquals(
+      let not_changed = last_id < 1 || bounds[last_id].approximately_equals(
         bounds[last_id - 1]);
       return not_changed ? null : bounds[last_id].diff(bounds[last_id - 1]);
     };
@@ -259,19 +259,20 @@ ReinitCSSPropertyGenerators();
 
   ElementTree.prototype.all_elements = function(sel) {
     let elements = [];
-    function addElement(e) {
-      if (!(e instanceof HTMLElement))
-        return;
+    function add_element(e) {
       if (sel && !sel(e))
         return;
-      elements.push(new Element(e));
+      if (e instanceof HTMLElement) {
+        // TODO: Should we early return if |e| is not HTMLElement?
+        elements.push(new Element(e));
+      }
       let child = e.firstChild;
       while(child) {
-        addElement(child);
+        add_element(child);
         child = child.nextSibling;
       }
     }
-    addElement(this.root());
+    add_element(this.root());
     return elements;
   };
 
@@ -284,7 +285,12 @@ ReinitCSSPropertyGenerators();
     this.top = () => { return top; };
     this.width = () => { return bounds.width; };
     this.height = () => { return bounds.height; };
+    this.area = () => {return bounds.width * bounds.height; };
   }
+
+  Element.prototype.area = function() {
+    return (new ElementRect(this.element())).area();
+  };
 
   ElementRect.prototype.diff = function(o) {
     return {
@@ -299,7 +305,7 @@ ReinitCSSPropertyGenerators();
     return `(${this.left()}, ${this.top()}) ${this.width()}x${this.height()}`;
   };
 
-  ElementRect.prototype.approximatelyEquals = function(other, err) {
+  ElementRect.prototype.approximately_equals = function(other, err) {
     let delta = this.diff(other);
     if (!err) err = 0.1;
     for (key in delta) {
@@ -441,7 +447,7 @@ async function startTest(root, params) {
       });
     } else {
       console.log(layout_animation_properties);
-      downloadData(layout_animation_properties);
+      download_data(layout_animation_properties);
       sendMessage(
         JSON.stringify({type: "test-done", result: layout_animation_properties}));
     }
@@ -449,7 +455,7 @@ async function startTest(root, params) {
   animations[0].run(on_finished_running_animation);
 }
 
-function element_bounds_size_limit(e) {
+function element_bounds_size_limit(e, min_area,) {
   let b = e.getBoundingClientRect();
   return b.width > 0 && b.height > 0;
 }
@@ -458,12 +464,28 @@ function create_animations(root_element, params) {
   // Initialize RNG.
   set_global_prng_seed(params.seed);
 
-  var tree = new ElementTree(root_element);
-  var all_elements = tree.all_elements(element_bounds_size_limit);
+  var tree = new ElementTree(root_element)
+  var all_elements = tree.all_elements();
+  // Filter elements according to their sizes.
+  var elements_used_in_measurements = [];
+  all_elements.forEach( (e) => {
+    let b = e.getBoundingClientRect();
+    let area = b.width * b.height;
+    if ((area > params.element_area_min) &&
+        (area < params.element_area_max)) {
+      elements_used_in_measurements.push(e);
+    }
+  });
+  all_elements = elements_used_in_measurements;
+  // Assign unique IDs for further tracking.
   all_elements.forEach( (e) => {
     e.element().setAttribute("global-unique-id", global_id(16));
   });
-  var animated_elements = random_subarray(all_elements, params.animated_elements_percentage / 100);
+
+  var animated_elements = random_subarray(
+    all_elements,
+    params.animated_elements_percentage / 100);
+
   var css_properties = Object.keys(g_css_properties_map);
   if (params.css_properties !== "null") {
     css_properties = JSON.parse(params.css_properties);
@@ -485,12 +507,13 @@ function create_animations(root_element, params) {
       let element = animated_elements[g_default_prng.randInt(
         0,
         animated_elements_count)];
-        let animation = new AnimationMonitor(
-          element,
-          all_elements,
-          property,
-          params.sample_period,
-          params.animation_duration * 1);
+      // Each animation will have its own randomly selected styling.
+      let animation = new AnimationMonitor(
+        element,
+        all_elements,
+        property,
+        params.sample_period,
+        params.animation_duration * 1);
         all_animations.push(animation);
     }
   }
@@ -508,7 +531,7 @@ function sendMessage(msg) {
   background_port.postMessage(msg, "*");
 }
 
-function downloadData(d) {
+function download_data(d) {
   var data = JSON.stringify(d , null, 2); //indentation in json format, human readable
 
   var link = document.createElement("a");
@@ -520,8 +543,21 @@ function downloadData(d) {
   link.click();
 }
 
-function reportElementCound(e) {
+function report_elements_count(e, min_area, max_area) {
   let t = new ElementTree(e);
-  let c = t.all_elements(element_bounds_size_limit).length;
-  sendMessage({type: "count", count: c});
+  let c = t.all_elements();
+  let m = 0;
+  c.forEach((e) => {
+    let area = e.area();
+    if ((area >= min_area) && (area <= max_area))
+      m++;
+  });
+  sendMessage({
+    type: "count",
+    data: {
+      total_elements_count: c,
+      elements_within_bounds_count: m,
+      area_min: min_area,
+      area_max: max_area,
+  }});
 }
