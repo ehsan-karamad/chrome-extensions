@@ -85,7 +85,7 @@ function on_area_changed() {
 }
 
 function on_element_count_received(data) {
-  let msg = `Out of ${data.total_count} elements in the subtree, ` +
+  let msg = `Out of ${data.total_elements_count} elements in the subtree, ` +
             `${data.elements_within_bounds_count} are within area range [${data.area_min}, ${data.area_max}].` +
             ` The number of elements which will get animated is almost ${Math.floor(get_value("elements-share") / 100 * data.elements_within_bounds_count)}.`;
 

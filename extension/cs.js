@@ -356,6 +356,8 @@ NodeTree.ElementRect.prototype.approximately_equals = function(other, err) {
 
   function AnimationMonitor(animated_element, elements_to_monitor, property, raf_period, duration, callback) {
     let is_running = false, self = this;
+    let change_observed = false;
+    let elements_with_change = [];
     self.next_animation = null;
     self.element = () => { return animated_element; };
     self.all_nodes = () => { return elements_to_monitor; };
@@ -364,13 +366,21 @@ NodeTree.ElementRect.prototype.approximately_equals = function(other, err) {
     self.duration = () => { return duration; };
     self.set_is_running = (r) => { is_running = r; };
     self.is_running = () => { return is_running; };
+    self.elements_with_change = () => { return elements_with_change; }
 
     let raf_count = 0;
     function test_bounds() {
+      if (change_observed)
+        return;
       for (var index = 0; index < self.all_nodes().length; ++index) {
-        let diff = self.all_nodes()[index].sample();
-        if (diff) {
-          self.bounds_diff = diff;
+        if (elements_with_change.length >= 3)
+          break;
+        let result = self.all_nodes()[index].sample();
+        if (result) {
+          elements_with_change.push ({
+            "global-unique-id": self.all_nodes()[index].element().getAttribute("global-unique-id"),
+            diff: result});
+          change_observed = true;
           add_violating_animation(self);
         }
       }
@@ -415,7 +425,9 @@ AnimationMonitor.prototype.run = function(callback) {
     callback(self.next_animation);
   }
 
-  if (self.property().name() in layout_animation_properties) {
+  if ((self.property().name() in layout_animation_properties) &&
+      layout_animation_properties[self.property().name()].length >= 3) {
+    console.log(`Ignored animation on "${self.property().name()}" since the style is already flagged and 3 sample animations recorded.`);
     if (self.next_animation)
       self.next_animation.run(callback);
     return;
@@ -445,7 +457,7 @@ AnimationMonitor.prototype.summary = function() {
     frames: [this.frame_from, this.frame_to],
     page_html: document.body.outerHTML,
     element_gid: this.element().element().getAttribute("global-unique-id"),
-    bounds_diff: this.bounds_diff,
+    changes: this.elements_with_change()
   }
 }
 
@@ -460,7 +472,6 @@ async function startTest(root, params) {
   console.log(`A total of ${total_count_of_animations} animations to run.`);
   function on_finished_running_animation(next) {
     if (next) {
-      console.log(next.property().name());
       window.setTimeout(() => {
         next.run(on_finished_running_animation);
       });
@@ -468,7 +479,7 @@ async function startTest(root, params) {
       console.log(layout_animation_properties);
       download_data(layout_animation_properties);
       sendMessage(
-        JSON.stringify({type: "test-done", result: layout_animation_properties}));
+        {type: "test-done", result: layout_animation_properties});
     }
   }
   animations[0].run(on_finished_running_animation);
