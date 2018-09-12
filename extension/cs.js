@@ -465,7 +465,7 @@ var violating_animations = [];
 
 async function startTest(root, params) {
   console.log("Creating test animations...");
-  var animations = create_animations(root, params);
+  window.animations = create_animations(root, params);
   window.total_count_of_animations = animations.length;
   window.current_animation_run_count = 0;
   window.progress = 0;
